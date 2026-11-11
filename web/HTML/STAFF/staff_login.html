@@ -144,9 +144,9 @@
             });
 
 
-            // Gmail Validation
+            // Email Validation
             function isValidEmail(email) {
-                return /^[a-z0-9._%+-]+@gmail\.com$/.test(email);
+                return /^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$/.test(email);
             }
 
             // Indian Mobile Validation
@@ -194,7 +194,7 @@
                     }
                 } else {
                     if (!isValidEmail(mobileEmail)) {
-                        emailError.innerHTML ='<i class="fa-solid fa-circle-exclamation"></i> Enter a valid Gmail address.';
+                        emailError.innerHTML ='<i class="fa-solid fa-circle-exclamation"></i> Enter a valid email address.';
                         valid = false;
                     }
                 }

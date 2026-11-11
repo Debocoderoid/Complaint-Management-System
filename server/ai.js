@@ -4,7 +4,11 @@ const GEMINI_BASE = 'https://generativelanguage.googleapis.com/v1beta/models';
 
 const CATEGORIES = [
   'Academic Section', 'Accounts', 'Administration', 'Admission Cell', 'Cafeteria',
-  'Hostel', 'Library', 'Transport', 'Infrastructure', 'Examinations', 'Other',
+  'Civil Lab', 'Civil Maintenance', 'Computer Lab', 'Electrical Lab',
+  'Electrical Maintenance', 'Electronics Lab', 'Examination Cell', 'Hostel',
+  'Housekeeping', 'IT & Network Support', 'Laboratory', 'Library', 'Maintenance',
+  'Mechanical Lab', 'Other', 'Plumbing', 'Scholarship Cell', 'Security',
+  'Sports Department', 'Student Welfare', 'Training & Placement', 'Transport',
 ];
 
 function aiConfigured() {
