@@ -1,4 +1,4 @@
-// Student API: raise complaints (AI-checked), join existing ones, track status, give feedback.
+// Student API: file complaints with optional AI assistance, join existing ones, and track status.
 const express = require('express');
 const bcrypt = require('bcryptjs');
 const pool = require('../db');
@@ -88,6 +88,26 @@ async function openComplaints() {
   return rows;
 }
 
+async function duplicateDetails(complaintId, reason) {
+  const detail = await pool.query(
+    `SELECT c.complaint_id, c.category, c.description, c.status,
+            (SELECT COUNT(*)::int FROM complaint_member m WHERE m.complaint_id = c.complaint_id) AS reported_by
+     FROM complaint c WHERE c.complaint_id = $1`,
+    [complaintId]
+  );
+  const complaint = detail.rows[0];
+  if (!complaint) return null;
+  return {
+    complaintId: complaint.complaint_id,
+    similarity: 100,
+    category: complaint.category,
+    description: complaint.description,
+    reportedBy: complaint.reported_by,
+    status: complaint.status,
+    reason,
+  };
+}
+
 // AI segmentation and verdict for a draft complaint. Does not save anything.
 router.post('/analyze', wrap(async (req, res) => {
   const description = String(req.body.description || '').trim();
@@ -95,12 +115,18 @@ router.post('/analyze', wrap(async (req, res) => {
   if (!aiConfigured()) {
     return fail(res, 503, 'AI analysis is not configured on the server. Set AI_API_KEY and restart.');
   }
-  const analysis = await analyzeComplaint(description, await openComplaints());
+  const open = await openComplaints();
+  const analysis = await analyzeComplaint(description, open);
+  const match = open.find((complaint) => complaint.complaint_id === analysis.duplicateOf);
+  const duplicateComplaint = match
+    ? await duplicateDetails(match.complaint_id, analysis.duplicateReason)
+    : null;
   const rank = { High: 0, Medium: 1, Low: 2 };
   const top = analysis.issues.reduce((a, b) => (rank[b.priority] < rank[a.priority] ? b : a), analysis.issues[0] || { category: 'Other', priority: 'Medium' });
   res.json({
     ...analysis,
     description,
+    duplicateComplaint,
     message: analysis.spam ? (analysis.spamReason || 'This complaint looks like spam and was not submitted.') : analysis.verdict,
     category: analysis.spam ? '' : top.category,
     priority: analysis.spam ? '' : top.priority,
@@ -118,26 +144,12 @@ router.post('/check-duplicate', wrap(async (req, res) => {
   const analysis = await analyzeComplaint(description, open);
   const match = open.find((c) => c.complaint_id === analysis.duplicateOf);
   if (!match) return res.json({ duplicate: false });
-  const detail = await pool.query(
-    `SELECT c.complaint_id, c.category, c.description, c.status,
-            (SELECT COUNT(*)::int FROM complaint_member m WHERE m.complaint_id = c.complaint_id) AS reported_by
-     FROM complaint c WHERE c.complaint_id = $1`,
-    [match.complaint_id]
-  );
-  const d = detail.rows[0];
-  res.json({
-    duplicate: true,
-    complaintId: d.complaint_id,
-    similarity: 100,
-    category: d.category,
-    description: d.description,
-    reportedBy: d.reported_by,
-    status: d.status,
-    reason: analysis.duplicateReason,
-  });
+  const duplicate = await duplicateDetails(match.complaint_id, analysis.duplicateReason);
+  if (!duplicate) return res.json({ duplicate: false });
+  res.json({ duplicate: true, ...duplicate });
 }));
 
-// Raise a complaint. Saves real data, after the AI verdict is shown to the student.
+// Raise a complaint. AI analysis is optional; the submitted category and priority are validated.
 router.post('/complaints', wrap(async (req, res) => {
   const description = String(req.body.description || '').trim();
   const category = String(req.body.complaint_category || req.body.category || '').trim();

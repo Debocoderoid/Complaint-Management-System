@@ -161,6 +161,7 @@
                                 <option>Student Welfare</option>
                                 <option>Training &amp; Placement</option>
                                 <option>Transport</option>
+                                <option>Other</option>
 
                             </select>
 
@@ -176,10 +177,15 @@
 
                         <div class="form-group">
                             <label class="form-label">Priority</label>
-                            <input type="text" id="priority" class="form-control" placeholder="AI will detect priority" readonly>
+                            <select id="priority" class="form-control">
+                                <option value="">-- Choose Priority --</option>
+                                <option>High</option>
+                                <option>Medium</option>
+                                <option>Low</option>
+                            </select>
                             <input type="hidden" id="priorityValue" name="priority">
                             <div id="aiPrioritySuggestion"></div>
-                            <div id="aiStatus" role="status" style="display:none;font-size:13px;color:#1e4fa3;margin-top:6px;">AI is analyzing your complaint...</div>
+                            <div id="aiStatus" role="status" style="display:none;font-size:13px;color:#1e4fa3;margin-top:6px;"></div>
                         </div>
 
                         <div style="margin-top: 2rem; display: flex; gap: 1rem;">
@@ -309,6 +315,10 @@
 
                 let duplicateComplaintId = "";
 
+                document.getElementById("priority").addEventListener("change", function () {
+                    document.getElementById("priorityValue").value = this.value;
+                });
+
 
                 // ============================================
                 // Profile Dropdown
@@ -373,7 +383,9 @@
                 let aiTimer = null;
 
                 function showAnalyzing(on) {
-                    document.getElementById("aiStatus").style.display = on ? "block" : "none";
+                    const status = document.getElementById("aiStatus");
+                    status.textContent = on ? "AI is analyzing your complaint..." : "";
+                    status.style.display = on ? "block" : "none";
                 }
 
                 description.addEventListener("input", function () {
@@ -382,22 +394,22 @@
 
                     const desc = description.value.trim();
 
+                    window.latestAiAnalysis = null;
+                    document.getElementById("aiAnalysis").value = "";
+                    document.getElementById("priority").value = "";
+                    document.getElementById("priorityValue").value = "";
+                    showAnalyzing(false);
+
                     if(desc.length < 10){
 
                         document.getElementById("aiCategorySuggestion").style.display = "none";
 
                         document.getElementById("aiPrioritySuggestion").style.display = "none";
-
-                        document.getElementById("priority").value = "";
-
-                        document.getElementById("priorityValue").value = "";
+                        showAnalyzing(false);
 
                         return;
 
                     }
-
-                    window.latestAiAnalysis = null;
-                    document.getElementById("aiAnalysis").value = "";
 
                     aiTimer = setTimeout(function(){
 
@@ -423,9 +435,18 @@
 
                         .then(data=>{
 
-                            if(!data.error){
-                                window.latestAiAnalysis = data;
+                            if(description.value.trim() !== desc){
+                                return;
                             }
+
+                            if(data.error){
+                                document.getElementById("aiStatus").textContent =
+                                    "AI is unavailable. Choose a category and priority manually; you can still submit.";
+                                document.getElementById("aiStatus").style.display = "block";
+                                return;
+                            }
+
+                            window.latestAiAnalysis = data;
 
                             // -------------------------
                             // Spam Complaint
@@ -489,8 +510,10 @@
                                         + data.category +
                                         '</b>';
 
-                                    // Automatically change dropdown
-                                    category.value = data.category;
+                                    // Apply only suggestions available in the category list.
+                                    if(Array.from(category.options).some(option => option.value === data.category)){
+                                        category.value = data.category;
+                                    }
 
                                 }
 
@@ -504,8 +527,7 @@
 
                                 const priority =
                                     document.getElementById("priority");
-
-                                document.getElementById("priority").value = data.priority;
+                                    priority.value = data.priority;
                                 document.getElementById("priorityValue").value = data.priority;
 
                                 const priorityBox =
@@ -523,10 +545,21 @@
                         })
 
                         .catch(err=>{
+                            if(description.value.trim() !== desc){
+                                return;
+                            }
                             console.error(err);
-                            alert("The AI analysis could not run. Check your connection and try again. If you were signed out, sign in again from the login page.");
+                            document.getElementById("aiStatus").textContent =
+                                "AI is unavailable. Choose a category and priority manually; you can still submit.";
+                            document.getElementById("aiStatus").style.display = "block";
                         })
-                        .finally(function(){ showAnalyzing(false); });
+                        .finally(function(){
+                            const status = document.getElementById("aiStatus");
+                            if(description.value.trim() === desc &&
+                                status.textContent === "AI is analyzing your complaint..."){
+                                showAnalyzing(false);
+                            }
+                        });
 
                     },500);
 
@@ -615,11 +648,10 @@
 
                     e.preventDefault();
 
-                    const categoryValue =
-                            category.value.trim();
-
                     const descriptionValue =
-                            description.value.trim();                    if(descriptionValue.length < 20){
+                            description.value.trim();
+
+                    if(descriptionValue.length < 20){
 
                         alert("Complaint description must be at least 20 characters.");
 
@@ -628,130 +660,51 @@
                         return;
                     }
 
-                    // AI has not returned a priority yet: wait for it, then submit.
-                    if(document.getElementById("priorityValue").value==""){
-
-                        clearTimeout(aiTimer);
-                        showAnalyzing(true);
-
-                        fetch("/api/student/analyze",{
-                            method:"POST",
-                            headers:{"Content-Type":"application/x-www-form-urlencoded"},
-                            body:"description="+encodeURIComponent(descriptionValue)
-                        })
-                        .then(res=>res.json())
-                        .then(data=>{
-                            if(data.error){ throw new Error(data.error); }
-                            window.latestAiAnalysis = data;
-                            if(data.spam){
-                                alert(data.message);
-                                complaintForm.reset();
-                                return;
-                            }
-                            if(data.priority){
-                                document.getElementById("priority").value = data.priority;
-                                document.getElementById("priorityValue").value = data.priority;
-                            }
-                            complaintForm.requestSubmit();
-                        })
-                        .catch(function(err){
-                            alert(err.message || "The AI analysis could not run. Check your connection and try again.");
-                        })
-                        .finally(function(){ showAnalyzing(false); });
+                    if(document.getElementById("priorityValue").value === ""){
+                        alert("Choose a priority, or wait for the AI suggestion.");
+                        document.getElementById("priority").focus();
                         return;
                     }
 
-
                     const analysis = window.latestAiAnalysis;
+                    const currentAnalysis =
+                        analysis && analysis.description === descriptionValue ? analysis : null;
                     document.getElementById("aiAnalysis").value =
-                        analysis && analysis.description === descriptionValue ? JSON.stringify(analysis) : "";
+                        currentAnalysis ? JSON.stringify(currentAnalysis) : "";
 
-                    fetch("/api/student/check-duplicate", {
+                    if(!currentAnalysis){
+                        alert("AI analysis is unavailable. Your complaint will be submitted without an AI duplicate check.");
+                        submitComplaint();
+                        return;
+                    }
 
-                        method: "POST",
+                    const duplicate = currentAnalysis.duplicateComplaint;
+                    if(!duplicate){
+                        submitComplaint();
+                        return;
+                    }
 
-                        headers: {
+                    duplicateComplaintId = duplicate.complaintId;
 
-                            "Content-Type":
-                            "application/x-www-form-urlencoded"
+                    document.getElementById("popupSimilarity").textContent =
+                            duplicate.similarity + "% Similar Complaint Found";
 
-                        },
+                    document.getElementById("popupComplaintId").textContent =
+                            duplicate.complaintId;
 
-                        body:
+                    document.getElementById("popupCategory").textContent =
+                            duplicate.category;
 
-                            "category=" +
-                            encodeURIComponent(categoryValue)
+                    document.getElementById("popupDescription").textContent =
+                            duplicate.description;
 
-                            +
+                    document.getElementById("popupReportedBy").textContent =
+                            duplicate.reportedBy + " Students";
 
-                            "&description=" +
+                    document.getElementById("popupStatus").textContent =
+                            duplicate.status;
 
-                            encodeURIComponent(descriptionValue)
-
-                    })
-
-                    .then(response => response.json())
-
-                    .then(data => {
-
-                        if (data.error) {
-
-                            alert(data.error);
-
-                            return;
-
-                        }
-
-                        // ===========================
-                        // No Similar Complaint
-                        // ===========================
-
-                        if (!data.duplicate) {
-
-                            submitComplaint();
-
-                            return;
-
-                        }
-
-                        // ===========================
-                        // Similar Complaint Found
-                        // ===========================
-
-                        duplicateComplaintId =
-                                data.complaintId;
-
-                        document.getElementById("popupSimilarity").textContent =
-                                data.similarity +
-                                "% Similar Complaint Found";
-
-                        document.getElementById("popupComplaintId").textContent =
-                                data.complaintId;
-
-                        document.getElementById("popupCategory").textContent =
-                                data.category;
-
-                        document.getElementById("popupDescription").textContent =
-                                data.description;
-
-                        document.getElementById("popupReportedBy").textContent =
-                                data.reportedBy +
-                                " Students";
-
-                        document.getElementById("popupStatus").textContent =
-                                data.status;
-
-                        duplicatePopup.classList.add("show");
-
-                    })
-
-                    .catch(function (error) {
-
-                        console.error(error);
-
-                        alert("Unable to connect to AI service.");
-
-                    });
+                    duplicatePopup.classList.add("show");
 
                 });
 

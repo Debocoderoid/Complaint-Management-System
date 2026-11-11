@@ -1,14 +1,18 @@
 // AI analysis for complaints. Provider, key and model come from the environment:
-// AI_PROVIDER=gemini, AI_API_KEY=<key>, AI_MODEL=gemini-1.5-flash
+// AI_PROVIDER=gemini, AI_API_KEY=<key>, AI_MODEL=gemini-3.1-flash-lite
 const GEMINI_BASE = 'https://generativelanguage.googleapis.com/v1beta/models';
 
 const CATEGORIES = [
   'Academic Section', 'Accounts', 'Administration', 'Admission Cell', 'Cafeteria',
-  'Hostel', 'Library', 'Transport', 'Infrastructure', 'Examinations', 'Other',
+  'Civil Lab', 'Civil Maintenance', 'Computer Lab', 'Electrical Lab',
+  'Electrical Maintenance', 'Electronics Lab', 'Examination Cell', 'Hostel',
+  'Housekeeping', 'IT & Network Support', 'Laboratory', 'Library', 'Maintenance',
+  'Mechanical Lab', 'Other', 'Plumbing', 'Scholarship Cell', 'Security',
+  'Sports Department', 'Student Welfare', 'Training & Placement', 'Transport',
 ];
 
 function aiConfigured() {
-  return Boolean(process.env.GEMINI_API_KEY && process.env.GEMINI_API_KEY.trim());
+  return Boolean(process.env.AI_API_KEY && process.env.AI_API_KEY.trim());
 }
 
 // Calls Gemini and returns the reply text. Throws an Error with a readable message.
@@ -20,7 +24,7 @@ async function askModel(prompt) {
   if (provider !== 'gemini') {
     throw new Error(`Unsupported AI_PROVIDER "${provider}". Use gemini.`);
   }
-  const model = process.env.AI_MODEL || 'gemini-1.5-flash';
+  const model = process.env.AI_MODEL || 'gemini-3.1-flash-lite';
   const res = await fetch(`${GEMINI_BASE}/${encodeURIComponent(model)}:generateContent`, {
     method: 'POST',
     headers: {
