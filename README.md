@@ -220,8 +220,10 @@ Fill in `DATABASE_URL` and `SESSION_SECRET`. See [Environment Variables](#-envir
 
 ```bash
 npm run setup-db   # creates the tables and prints a one-time admin signup code
-npm start          # http://localhost:3000
+npm run dev        # http://localhost:3001, restarts/reloads when files change
 ```
+
+Use `npm start` for a normal server without file watching (`http://localhost:3000`).
 
 > [!NOTE]
 > `setup-db` is safe to run more than once. It only creates what is missing.

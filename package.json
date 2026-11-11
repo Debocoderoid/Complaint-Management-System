@@ -4,6 +4,7 @@
   "description": "",
   "main": "server/app.js",
   "scripts": {
+    "dev": "concurrently -k --names server,browser \"nodemon server/app.js\" \"browser-sync start --config bs-config.js\"",
     "start": "node server/app.js",
     "setup-db": "node server/setup-db.js",
     "test": "node --test",
@@ -24,7 +25,10 @@
   "private": true,
   "devDependencies": {
     "@eslint/js": "^9.39.5",
+    "browser-sync": "^3.0.4",
+    "concurrently": "^10.0.7",
     "eslint": "^9.39.5",
-    "globals": "^16.5.0"
+    "globals": "^16.5.0",
+    "nodemon": "^3.1.14"
   }
 }
